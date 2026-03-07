@@ -13,8 +13,9 @@ import {
 } from "recharts";
 import {
   Search, Filter, X, Music2, Zap, ArrowUpDown,
-  LayoutGrid, List, ExternalLink, Activity, ChevronDown
+  LayoutGrid, List, ExternalLink, Activity, ChevronDown, FileDown
 } from "lucide-react";
+import { exportToPdf } from "@/lib/exportPdf";
 import { MIDI_DATA, CATEGORIES, STATS_BY_CATEGORY, TYPE_COLORS, CAT_COLORS, TOTAL } from "@/lib/midiData";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310419663031120973/VmM56JPUAEXAm5tmyDWKUu/traktor-hero-33nLS4kk55t8zYwQV5WzgH.webp";
@@ -161,6 +162,22 @@ export default function Home() {
   const clearFilters = () => { setSearch(""); setSelectedCat("Toutes"); setSelectedType("Tous"); };
   const hasFilters = search || selectedCat !== "Toutes" || selectedType !== "Tous";
 
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportPdf = async () => {
+    setIsExporting(true);
+    try {
+      const filterLabel = selectedCat !== "Toutes" ? selectedCat : selectedType !== "Tous" ? selectedType : "Toutes catégories";
+      exportToPdf({
+        data: filtered,
+        filterLabel,
+        searchQuery: search.trim() || undefined,
+      });
+    } finally {
+      setTimeout(() => setIsExporting(false), 1200);
+    }
+  };
+
   return (
     <div className="min-h-screen" style={{ background: "linear-gradient(160deg, #FAF7F2 0%, #FDF6EC 50%, #F7F3EE 100%)" }}>
 
@@ -269,6 +286,23 @@ export default function Home() {
                       <X size={12} /> Effacer
                     </button>
                   )}
+
+                  {/* Bouton Export PDF */}
+                  <button
+                    onClick={handleExportPdf}
+                    disabled={isExporting || filtered.length === 0}
+                    className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl transition-all border disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{
+                      background: isExporting ? "#EDE9FE" : "#7C3AED",
+                      color: isExporting ? "#7C3AED" : "white",
+                      borderColor: "#7C3AED",
+                      boxShadow: isExporting ? "none" : "0 2px 8px rgba(124,58,237,0.25)"
+                    }}
+                    title={`Exporter ${filtered.length} contrôle(s) en PDF`}
+                  >
+                    <FileDown size={13} />
+                    {isExporting ? "Génération…" : `PDF (${filtered.length})`}
+                  </button>
                 </div>
                 <div className="flex items-center gap-2 text-xs font-mono text-gray-400">
                   <span className="text-violet-600 font-bold text-sm">{filtered.length}</span>
