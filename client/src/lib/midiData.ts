@@ -309,6 +309,31 @@ export const MIDI_DATA: MidiControl[] = [
   { categorie: "Track Deck", nom: "Grid > BPM /2", description: "Divise par deux le BPM de la piste", type: "Entrée/Sortie" },
   { categorie: "Track Deck", nom: "Grid > Beat Tap", description: "Définit le BPM de la piste en le tapant", type: "Entrée/Sortie" },
   { categorie: "Track Deck", nom: "Grid > Tick On", description: "Active/désactive le son de tick sur le temps", type: "Entrée/Sortie" },
+  // ── Commandes Virtuelles (8 Buttons + 8 Knobs + 8 Faders) ──
+  { categorie: "Commandes Virtuelles", nom: "MIDI Button 1", description: "Slot de bouton virtuel global #1 — assignable à n’importe quelle action TRAKTOR via le Controller Manager. Supporte les modes Hold, Toggle et Direct. Utilisé typiquement pour Play/Pause, Hotcue 1 ou activation FX.", type: "Entrée/Sortie" },
+  { categorie: "Commandes Virtuelles", nom: "MIDI Button 2", description: "Slot de bouton virtuel global #2 — souvent utilisé pour Cue, Hotcue 2 ou activation d’une unité FX.", type: "Entrée/Sortie" },
+  { categorie: "Commandes Virtuelles", nom: "MIDI Button 3", description: "Slot de bouton virtuel global #3 — fréquemment utilisé comme touche Shift/Modifier pour créer des couches de fonctions avec les Buttons 1-2.", type: "Entrée/Sortie" },
+  { categorie: "Commandes Virtuelles", nom: "MIDI Button 4", description: "Slot de bouton virtuel global #4 — peut servir de second Modifier ou pour des actions de Loop/Sync.", type: "Entrée/Sortie" },
+  { categorie: "Commandes Virtuelles", nom: "MIDI Button 5", description: "Slot de bouton virtuel global #5 — utilisé dans des macros avancées pour contrôle d’effets ou de transport.", type: "Entrée/Sortie" },
+  { categorie: "Commandes Virtuelles", nom: "MIDI Button 6", description: "Slot de bouton virtuel global #6 — peut envoyer des messages MIDI sortants vers des applications externes (Ableton, DMX).", type: "Entrée/Sortie" },
+  { categorie: "Commandes Virtuelles", nom: "MIDI Button 7", description: "Slot de bouton virtuel global #7 — souvent utilisé pour des actions de navigation Browser ou de sélection de platine.", type: "Entrée/Sortie" },
+  { categorie: "Commandes Virtuelles", nom: "MIDI Button 8", description: "Slot de bouton virtuel global #8 — peut déclencher des actions de recording ou de monitoring.", type: "Entrée/Sortie" },
+  { categorie: "Commandes Virtuelles", nom: "MIDI Knob 1", description: "Slot de potentiomètre virtuel global #1 — contrôle continu assignable à n’importe quel paramètre TRAKTOR (volume, filtre, EQ, tempo). Supporte les modes Direct et Relative.", type: "Entrée/Sortie" },
+  { categorie: "Commandes Virtuelles", nom: "MIDI Knob 2", description: "Slot de potentiomètre virtuel global #2 — souvent utilisé pour le réglage de Dry/Wet FX ou du filtre d’une platine.", type: "Entrée/Sortie" },
+  { categorie: "Commandes Virtuelles", nom: "MIDI Knob 3", description: "Slot de potentiomètre virtuel global #3 — peut contrôler la fréquence d’un LFO ou le tempo du Master Clock.", type: "Entrée/Sortie" },
+  { categorie: "Commandes Virtuelles", nom: "MIDI Knob 4", description: "Slot de potentiomètre virtuel global #4 — utilisé dans des macros pour morphing EQ ou contrôle de volume de stem.", type: "Entrée/Sortie" },
+  { categorie: "Commandes Virtuelles", nom: "MIDI Knob 5", description: "Slot de potentiomètre virtuel global #5 — peut contrôler le gain d’un canal Mixer ou la taille d’une boucle.", type: "Entrée/Sortie" },
+  { categorie: "Commandes Virtuelles", nom: "MIDI Knob 6", description: "Slot de potentiomètre virtuel global #6 — souvent utilisé pour le réglage de la balance ou du monitoring.", type: "Entrée/Sortie" },
+  { categorie: "Commandes Virtuelles", nom: "MIDI Knob 7", description: "Slot de potentiomètre virtuel global #7 — contrôle l’intensité globale des effets (Dry/Wet global). Combiné avec Buttons 1-3 pour des macros avancées.", type: "Entrée/Sortie" },
+  { categorie: "Commandes Virtuelles", nom: "MIDI Knob 8", description: "Slot de potentiomètre virtuel global #8 — utilisé dans les macros de morphing EQ (contrôle simultané High EQ Deck A et B en mode inversé selon Modifier).", type: "Entrée/Sortie" },
+  { categorie: "Commandes Virtuelles", nom: "MIDI Fader 1", description: "Slot de fader virtuel global #1 — contrôle linéaire assignable à n’importe quel paramètre de type fader (volume, crossfader, loop size). Idéal pour le volume d’une platine.", type: "Entrée/Sortie" },
+  { categorie: "Commandes Virtuelles", nom: "MIDI Fader 2", description: "Slot de fader virtuel global #2 — souvent utilisé pour le volume d’une seconde platine ou pour le réglage du monitor mix.", type: "Entrée/Sortie" },
+  { categorie: "Commandes Virtuelles", nom: "MIDI Fader 3", description: "Slot de fader virtuel global #3 — peut contrôler le volume master ou le gain d’un canal.", type: "Entrée/Sortie" },
+  { categorie: "Commandes Virtuelles", nom: "MIDI Fader 4", description: "Slot de fader virtuel global #4 — utilisé dans des configurations multi-deck pour le volume de la platine C ou D.", type: "Entrée/Sortie" },
+  { categorie: "Commandes Virtuelles", nom: "MIDI Fader 5", description: "Slot de fader virtuel global #5 — peut contrôler la position du crossfader ou le Dry/Wet d’un effet.", type: "Entrée/Sortie" },
+  { categorie: "Commandes Virtuelles", nom: "MIDI Fader 6", description: "Slot de fader virtuel global #6 — souvent utilisé pour des réglages de Stem Volume dans les configurations STEM Deck.", type: "Entrée/Sortie" },
+  { categorie: "Commandes Virtuelles", nom: "MIDI Fader 7", description: "Slot de fader virtuel global #7 — peut contrôler la taille d’enregistrement du Loop Recorder ou le tempo bend.", type: "Entrée/Sortie" },
+  { categorie: "Commandes Virtuelles", nom: "MIDI Fader 8", description: "Slot de fader virtuel global #8 — utilisé dans des macros avancées pour des transitions automatiques ou des effets de sweep.", type: "Entrée/Sortie" },
 ];
 
 // Stats
@@ -343,4 +368,5 @@ export const CAT_COLORS: Record<string, string> = {
   "Preview Player": "#A9DFBF",
   "Remix Deck": "#82E0AA",
   "Track Deck": "#FAD7A0",
+  "Commandes Virtuelles": "#E8A0D4",
 };
