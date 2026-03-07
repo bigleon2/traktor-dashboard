@@ -36,13 +36,16 @@ const TYPE_LABELS: Record<string, string> = {
   "Sortie":        "OUT",
 };
 
+type AnnotationRecord = Record<string, { canal: string; noteCC: string; note: string }>;
+
 interface ExportOptions {
   data: MidiControl[];
   filterLabel: string;
   searchQuery?: string;
+  annotations?: AnnotationRecord;
 }
 
-export function exportToPdf({ data, filterLabel, searchQuery }: ExportOptions) {
+export function exportToPdf({ data, filterLabel, searchQuery, annotations = {} }: ExportOptions) {
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
 
   const PW = 297;

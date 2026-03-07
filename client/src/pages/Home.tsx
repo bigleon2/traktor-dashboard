@@ -11,7 +11,7 @@
  * - Export PDF enrichi avec colonne Cas d'usage
  */
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -20,10 +20,12 @@ import {
 import {
   Search, Filter, X, Music2, Zap, ArrowUpDown,
   LayoutGrid, List, ExternalLink, Activity, ChevronDown, FileDown,
-  AlertCircle, Lightbulb
+  AlertCircle, Lightbulb, Star, BookOpen, Pencil, Check
 } from "lucide-react";
 import { exportToPdf } from "@/lib/exportPdf";
 import { MIDI_DATA, CATEGORIES, STATS_BY_CATEGORY, CAT_COLORS, TOTAL } from "@/lib/midiData";
+import { useAnnotations } from "@/hooks/useAnnotations";
+import { useFavorites } from "@/hooks/useFavorites";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310419663031120973/VmM56JPUAEXAm5tmyDWKUu/traktor-hero-33nLS4kk55t8zYwQV5WzgH.webp";
 
@@ -173,6 +175,77 @@ function StatCard({ label, value, color, icon: Icon, bgColor }: {
   );
 }
 
+// ─── Annotation Panel ───────────────────────────────────────────────────────
+type AnnotationData = { canal: string; noteCC: string; note: string };
+
+function AnnotationPanel({
+  categorie, nom, annotation, onSave
+}: {
+  categorie: string;
+  nom: string;
+  annotation: AnnotationData | null;
+  onSave: (data: AnnotationData) => void;
+}) {
+  const [canal, setCanal] = useState(annotation?.canal || "");
+  const [noteCC, setNoteCC] = useState(annotation?.noteCC || "");
+  const [note, setNote] = useState(annotation?.note || "");
+  const [saved, setSaved] = useState(false);
+
+  const handleSave = () => {
+    onSave({ canal, noteCC, note });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+  };
+
+  return (
+    <div
+      className="mx-4 mb-2 p-3 rounded-xl border border-teal-200 bg-teal-50"
+      onClick={e => e.stopPropagation()}
+    >
+      <p className="text-[10px] font-semibold text-teal-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+        <BookOpen size={10} /> Annotation MIDI personnelle
+      </p>
+      <div className="flex flex-wrap gap-2 items-end">
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] text-teal-500 font-mono">Canal MIDI</label>
+          <input
+            value={canal}
+            onChange={e => setCanal(e.target.value)}
+            placeholder="ex: 1"
+            className="w-20 border border-teal-200 rounded-lg px-2 py-1 text-xs font-mono text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-teal-300"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] text-teal-500 font-mono">Note / CC</label>
+          <input
+            value={noteCC}
+            onChange={e => setNoteCC(e.target.value)}
+            placeholder="ex: CC74"
+            className="w-24 border border-teal-200 rounded-lg px-2 py-1 text-xs font-mono text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-teal-300"
+          />
+        </div>
+        <div className="flex flex-col gap-1 flex-1 min-w-[140px]">
+          <label className="text-[10px] text-teal-500 font-mono">Note libre</label>
+          <input
+            value={note}
+            onChange={e => setNote(e.target.value)}
+            placeholder="ex: Bouton Play deck A"
+            className="w-full border border-teal-200 rounded-lg px-2 py-1 text-xs font-mono text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-teal-300"
+          />
+        </div>
+        <button
+          onClick={handleSave}
+          className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            saved ? "bg-emerald-500 text-white" : "bg-teal-600 text-white hover:bg-teal-700"
+          }`}
+        >
+          {saved ? <><Check size={11} /> Enregistré</> : <><Pencil size={11} /> Sauvegarder</>}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page principale ──────────────────────────────────────────────────────────
 export default function Home() {
   const [search, setSearch] = useState("");
@@ -185,6 +258,14 @@ export default function Home() {
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"explorer" | "stats">("explorer");
   const [isExporting, setIsExporting] = useState(false);
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  // Ref pour fermer annotation quand on clique ailleurs
+  const annotRef = useRef<HTMLDivElement>(null);
+  const [editingAnnotation, setEditingAnnotation] = useState<string | null>(null); // clé "cat||nom"
+
+  // Hooks persistance localStorage
+  const { toggleFavorite, isFavorite, favoriteCount } = useFavorites();
+  const { setAnnotation, getAnnotation, annotationCount } = useAnnotations();
 
   // Réinitialiser le sous-groupe quand la catégorie change
   useEffect(() => {
@@ -211,6 +292,7 @@ export default function Home() {
       }
     }
 
+    if (showFavoritesOnly) data = data.filter(d => isFavorite(d.categorie, d.nom));
     if (selectedType !== "Tous") data = data.filter(d => d.type === selectedType);
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -225,7 +307,7 @@ export default function Home() {
       const va = a[sortField], vb = b[sortField];
       return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
     });
-  }, [search, selectedCat, selectedSubgroup, selectedType, sortField, sortAsc]);
+  }, [search, selectedCat, selectedSubgroup, selectedType, sortField, sortAsc, showFavoritesOnly, isFavorite]);
 
   const pieData = useMemo(() => [
     { name: "Entrée/Sortie", value: MIDI_DATA.filter(d => d.type === "Entrée/Sortie").length },
@@ -248,9 +330,9 @@ export default function Home() {
   };
 
   const clearFilters = () => {
-    setSearch(""); setSelectedCat("Toutes"); setSelectedType("Tous"); setSelectedSubgroup(null);
+    setSearch(""); setSelectedCat("Toutes"); setSelectedType("Tous"); setSelectedSubgroup(null); setShowFavoritesOnly(false);
   };
-  const hasFilters = search || selectedCat !== "Toutes" || selectedType !== "Tous" || selectedSubgroup;
+  const hasFilters = search || selectedCat !== "Toutes" || selectedType !== "Tous" || selectedSubgroup || showFavoritesOnly;
 
   const handleExportPdf = async () => {
     setIsExporting(true);
@@ -265,8 +347,14 @@ export default function Home() {
       }
       exportToPdf({
         data: filtered,
-        filterLabel,
+        filterLabel: showFavoritesOnly ? `⭐ Favoris — ${filterLabel}` : filterLabel,
         searchQuery: search.trim() || undefined,
+        annotations: Object.fromEntries(
+          filtered.map(d => {
+            const a = getAnnotation(d.categorie, d.nom);
+            return [`${d.categorie}||${d.nom}`, a];
+          }).filter(([, a]) => a !== null)
+        ) as Record<string, { canal: string; noteCC: string; note: string }>,
       });
     } finally {
       setTimeout(() => setIsExporting(false), 1200);
@@ -308,7 +396,7 @@ export default function Home() {
         </div>
 
         {/* ── ONGLETS ───────────────────────────────────────────────────────── */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {(["explorer", "stats"] as const).map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)}
               className={`px-6 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 shadow-sm ${
@@ -319,6 +407,26 @@ export default function Home() {
               {tab === "explorer" ? "🎛 Explorateur" : "📊 Statistiques"}
             </button>
           ))}
+          {/* Bouton Favoris */}
+          <button
+            onClick={() => setShowFavoritesOnly(f => !f)}
+            className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 shadow-sm flex items-center gap-2 ${
+              showFavoritesOnly
+                ? "bg-amber-400 text-white shadow-amber-200 shadow-md"
+                : "bg-white text-gray-500 hover:text-amber-500 hover:bg-amber-50 border border-gray-200"
+            }`}>
+            <Star size={14} fill={showFavoritesOnly ? "white" : "none"} />
+            Favoris {favoriteCount > 0 && <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
+              showFavoritesOnly ? "bg-white/30 text-white" : "bg-amber-100 text-amber-600"
+            }`}>{favoriteCount}</span>}
+          </button>
+          {/* Compteur annotations */}
+          {annotationCount > 0 && (
+            <span className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold bg-teal-50 text-teal-600 border border-teal-200">
+              <BookOpen size={14} />
+              {annotationCount} annotation{annotationCount > 1 ? "s" : ""}
+            </span>
+          )}
         </div>
 
         <AnimatePresence mode="wait">
@@ -380,6 +488,14 @@ export default function Home() {
                       className="flex items-center gap-1.5 text-xs text-rose-500 hover:text-rose-600 font-semibold border border-rose-200 rounded-xl px-3 py-2 hover:bg-rose-50 transition-all">
                       <X size={12} /> Effacer
                     </button>
+                  )}
+
+                  {/* Bouton Favoris filtre rapide */}
+                  {showFavoritesOnly && (
+                    <div className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl bg-amber-50 text-amber-600 border border-amber-200">
+                      <Star size={12} fill="currentColor" />
+                      Mode Favoris actif
+                    </div>
                   )}
 
                   {/* Bouton Export PDF */}
@@ -504,6 +620,7 @@ export default function Home() {
                       const catColor = CAT_COLORS_BRIGHT[item.categorie] || "#888";
                       const isExpanded = expandedRow === i;
                       return (
+                        <div key={`row-wrap-${item.categorie}-${item.nom}-${i}`}>
                         <motion.div
                           key={`${item.categorie}-${item.nom}-${i}`}
                           initial={{ opacity: 0 }}
@@ -514,11 +631,22 @@ export default function Home() {
                           }`}
                           onClick={() => setExpandedRow(isExpanded ? null : i)}
                         >
-                          {/* Nom + catégorie + badge non officiel */}
+                          {/* Nom + catégorie + badge non officiel + étoile favori */}
                           <div className="flex items-start gap-3 min-w-0">
                             <div className="w-1 min-h-[20px] rounded-full flex-shrink-0 mt-1" style={{ background: catColor }} />
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5 flex-wrap">
+                                <button
+                                  onClick={e => { e.stopPropagation(); toggleFavorite(item.categorie, item.nom); }}
+                                  className="flex-shrink-0 transition-transform hover:scale-125 focus:outline-none"
+                                  title={isFavorite(item.categorie, item.nom) ? "Retirer des favoris" : "Ajouter aux favoris"}
+                                >
+                                  <Star
+                                    size={13}
+                                    fill={isFavorite(item.categorie, item.nom) ? "#F59E0B" : "none"}
+                                    stroke={isFavorite(item.categorie, item.nom) ? "#F59E0B" : "#D1D5DB"}
+                                  />
+                                </button>
                                 <p className="text-sm font-semibold text-gray-800 font-mono">{item.nom}</p>
                                 {item.nonOfficiel && <NonOfficielBadge />}
                               </div>
@@ -543,7 +671,7 @@ export default function Home() {
                             )}
                           </div>
 
-                          {/* Type + chevron */}
+                          {/* Type + chevron + annotation */}
                           <div className="flex items-center justify-between gap-2">
                             <TypeBadge type={item.type} />
                             <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} className="text-gray-300">
@@ -551,6 +679,27 @@ export default function Home() {
                             </motion.div>
                           </div>
                         </motion.div>
+
+                        {/* Panneau d'annotation (visible si ligne étendue) */}
+                        <AnimatePresence>
+                          {isExpanded && (
+                            <motion.div
+                              key={`annot-${i}`}
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: "auto" }}
+                              exit={{ opacity: 0, height: 0 }}
+                              className="overflow-hidden"
+                            >
+                              <AnnotationPanel
+                                categorie={item.categorie}
+                                nom={item.nom}
+                                annotation={getAnnotation(item.categorie, item.nom)}
+                                onSave={(data) => setAnnotation(item.categorie, item.nom, data)}
+                              />
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                        </div>
                       );
                     })}
                   </div>
@@ -562,16 +711,26 @@ export default function Home() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[680px] overflow-y-auto pr-1">
                   {filtered.map((item, i) => {
                     const catColor = CAT_COLORS_BRIGHT[item.categorie] || "#888";
+                    const favActive = isFavorite(item.categorie, item.nom);
+                    const annot = getAnnotation(item.categorie, item.nom);
                     return (
                       <motion.div
                         key={`${item.categorie}-${item.nom}-${i}`}
                         initial={{ opacity: 0, scale: 0.97 }}
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ delay: Math.min(i * 0.012, 0.35) }}
-                        className="joy-card p-4"
+                        className="joy-card p-4 relative"
                         style={{ borderLeft: `4px solid ${catColor}` }}
                       >
-                        <div className="flex items-start justify-between gap-2 mb-2">
+                        {/* Bouton favori grille */}
+                        <button
+                          onClick={() => toggleFavorite(item.categorie, item.nom)}
+                          className="absolute top-3 right-3 transition-transform hover:scale-125 focus:outline-none"
+                          title={favActive ? "Retirer des favoris" : "Ajouter aux favoris"}
+                        >
+                          <Star size={14} fill={favActive ? "#F59E0B" : "none"} stroke={favActive ? "#F59E0B" : "#D1D5DB"} />
+                        </button>
+                        <div className="flex items-start justify-between gap-2 mb-2 pr-5">
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-gray-800 leading-tight font-mono">{item.nom}</p>
                             {item.nonOfficiel && <div className="mt-1"><NonOfficielBadge /></div>}
@@ -589,6 +748,15 @@ export default function Home() {
                           style={{ background: `${catColor}18`, color: catColor }}>
                           {item.categorie}
                         </span>
+                        {/* Annotation résumé en grille */}
+                        {annot && (annot.canal || annot.noteCC) && (
+                          <div className="mt-2 flex items-center gap-1.5 text-[10px] font-mono text-teal-700 bg-teal-50 border border-teal-200 rounded-lg px-2 py-1">
+                            <BookOpen size={9} className="flex-shrink-0" />
+                            {annot.canal && <span>Ch: {annot.canal}</span>}
+                            {annot.canal && annot.noteCC && <span className="text-teal-300">·</span>}
+                            {annot.noteCC && <span>{annot.noteCC}</span>}
+                          </div>
+                        )}
                       </motion.div>
                     );
                   })}
