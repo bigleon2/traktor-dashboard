@@ -1,33 +1,33 @@
-/*
+/**
  * Export PDF — TRAKTOR PRO 3 Assignations MIDI
- * Génère un PDF A4 propre et imprimable à partir des données filtrées.
- * Utilise jsPDF en mode texte pur (pas de screenshot) pour un rendu net.
+ * Format A4 paysage, 4 colonnes : Contrôle | Description | Cas d'usage | Type
+ * Badge "Non officiel" sur les Commandes Virtuelles
  */
 
 import jsPDF from "jspdf";
 import type { MidiControl } from "./midiData";
 
-// Couleurs joyeuses par catégorie (RGB)
 const CAT_COLORS_RGB: Record<string, [number, number, number]> = {
-  "AUDIO RECORDER":  [244,  63,  94],
-  "Browser":         [139,  92, 246],
-  "Deck Common":     [ 14, 165, 233],
-  "FX Unit":         [245, 158,  11],
-  "Global":          [236,  72, 153],
-  "Layout":          [ 20, 184, 166],
-  "Loop Recorder":   [249, 115,  22],
-  "Master Clock":    [ 16, 185, 129],
-  "Mixer":           [239,  68,  68],
-  "Modifier":        [ 99, 102, 241],
-  "Preview Player":  [  6, 182, 212],
-  "Remix Deck":      [132, 204,  22],
-  "Track Deck":      [168,  85, 247],
+  "AUDIO RECORDER":       [244,  63,  94],
+  "Browser":              [139,  92, 246],
+  "Commandes Virtuelles": [217,  70, 239],
+  "Deck Common":          [ 14, 165, 233],
+  "FX Unit":              [245, 158,  11],
+  "Global":               [236,  72, 153],
+  "Layout":               [ 20, 184, 166],
+  "Loop Recorder":        [249, 115,  22],
+  "Master Clock":         [ 16, 185, 129],
+  "Mixer":                [239,  68,  68],
+  "Modifier":             [ 99, 102, 241],
+  "Preview Player":       [  6, 182, 212],
+  "Remix Deck":           [132, 204,  22],
+  "Track Deck":           [168,  85, 247],
 };
 
-const TYPE_COLORS_RGB: Record<string, [number, number, number]> = {
-  "Entrée/Sortie": [109,  40, 217],
-  "Entrée":        [  4, 120,  87],
-  "Sortie":        [185,  28,  28],
+const TYPE_COLORS_RGB: Record<string, { bg: [number,number,number]; text: [number,number,number] }> = {
+  "Entrée/Sortie": { bg: [237, 233, 254], text: [109,  40, 217] },
+  "Entrée":        { bg: [209, 250, 229], text: [  4, 120,  87] },
+  "Sortie":        { bg: [254, 226, 226], text: [185,  28,  28] },
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -38,302 +38,293 @@ const TYPE_LABELS: Record<string, string> = {
 
 interface ExportOptions {
   data: MidiControl[];
-  filterLabel: string;   // ex: "Browser", "Toutes catégories", "Entrée/Sortie"
+  filterLabel: string;
   searchQuery?: string;
 }
 
 export function exportToPdf({ data, filterLabel, searchQuery }: ExportOptions) {
-  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
 
-  const PAGE_W = 210;
-  const PAGE_H = 297;
-  const MARGIN_L = 14;
-  const MARGIN_R = 14;
-  const CONTENT_W = PAGE_W - MARGIN_L - MARGIN_R;
-  const COL_NOM = 58;
-  const COL_DESC = 95;
-  const COL_TYPE = 22;
-  const ROW_H = 7;
-  const HEADER_H = 8;
+  const PW = 297;
+  const PH = 210;
+  const ML = 12;
+  const MR = 12;
+  const CW = PW - ML - MR;
 
+  // Largeurs colonnes
+  const C_NOM   = 52;
+  const C_DESC  = 90;
+  const C_USAGE = 65;
+  const C_TYPE  = CW - C_NOM - C_DESC - C_USAGE;
+
+  const X0 = ML;
+  const X1 = ML + C_NOM;
+  const X2 = ML + C_NOM + C_DESC;
+  const X3 = ML + C_NOM + C_DESC + C_USAGE;
+
+  const ROW_H   = 9;
+  const HDR_H   = 9;
   let y = 0;
+  let pageNum = 1;
 
-  // ── Fonction utilitaire : nouvelle page ──────────────────────────────────
-  function newPage() {
-    doc.addPage();
-    y = 14;
-    drawPageHeader();
-    drawTableHeader(y);
-    y += HEADER_H;
-  }
-
-  // ── En-tête de page ──────────────────────────────────────────────────────
-  function drawPageHeader() {
-    // Bande violette en haut
+  // ── Dessin en-tête tableau ──────────────────────────────────────────────────
+  function drawTableHeader() {
     doc.setFillColor(124, 58, 237);
-    doc.rect(0, 0, PAGE_W, 12, "F");
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.setTextColor(255, 255, 255);
-    doc.text("TRAKTOR PRO 3 — Assignations MIDI", MARGIN_L, 8);
-
-    const pageNum = doc.getCurrentPageInfo().pageNumber;
-    doc.text(`Page ${pageNum}`, PAGE_W - MARGIN_R, 8, { align: "right" });
-
-    y = 16;
-  }
-
-  // ── En-tête du tableau ───────────────────────────────────────────────────
-  function drawTableHeader(yPos: number) {
-    doc.setFillColor(245, 240, 232);
-    doc.rect(MARGIN_L, yPos, CONTENT_W, HEADER_H, "F");
-
-    doc.setDrawColor(200, 185, 255);
-    doc.setLineWidth(0.3);
-    doc.rect(MARGIN_L, yPos, CONTENT_W, HEADER_H);
-
+    doc.rect(ML, y, CW, HDR_H, "F");
     doc.setFont("helvetica", "bold");
     doc.setFontSize(7.5);
-    doc.setTextColor(100, 80, 160);
-
-    doc.text("CONTRÔLE", MARGIN_L + 2, yPos + 5.5);
-    doc.text("DESCRIPTION", MARGIN_L + COL_NOM + 2, yPos + 5.5);
-    doc.text("TYPE", MARGIN_L + COL_NOM + COL_DESC + 2, yPos + 5.5);
+    doc.setTextColor(255, 255, 255);
+    doc.text("CONTRÔLE",         X0 + 2, y + 6);
+    doc.text("DESCRIPTION",      X1 + 2, y + 6);
+    doc.text("CAS D'USAGE",      X2 + 2, y + 6);
+    doc.text("TYPE",             X3 + 2, y + 6);
+    y += HDR_H;
   }
 
-  // ── Ligne de données ─────────────────────────────────────────────────────
-  function drawRow(item: MidiControl, rowIndex: number, yPos: number) {
-    const isEven = rowIndex % 2 === 0;
-    const catColor = CAT_COLORS_RGB[item.categorie] || [120, 120, 120];
-    const typeColor = TYPE_COLORS_RGB[item.type] || [80, 80, 80];
-
-    // Fond alterné
-    if (!isEven) {
-      doc.setFillColor(252, 249, 245);
-      doc.rect(MARGIN_L, yPos, CONTENT_W, ROW_H, "F");
-    }
-
-    // Barre colorée catégorie à gauche
-    doc.setFillColor(...catColor);
-    doc.rect(MARGIN_L, yPos, 1.5, ROW_H, "F");
-
-    // Nom du contrôle
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7);
-    doc.setTextColor(30, 20, 50);
-    const nomTrunc = item.nom.length > 28 ? item.nom.substring(0, 27) + "…" : item.nom;
-    doc.text(nomTrunc, MARGIN_L + 3, yPos + 4.5);
-
-    // Catégorie (sous le nom)
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(5.5);
-    doc.setTextColor(...catColor);
-    doc.text(item.categorie, MARGIN_L + 3, yPos + 6.5);
-
-    // Description
-    doc.setFont("helvetica", "normal");
+  // ── Nouvelle page ───────────────────────────────────────────────────────────
+  function newPage() {
+    // Pied de page courant
     doc.setFontSize(6.5);
-    doc.setTextColor(80, 70, 90);
-    const descTrunc = item.description.length > 55 ? item.description.substring(0, 54) + "…" : item.description;
-    doc.text(descTrunc, MARGIN_L + COL_NOM + 2, yPos + 4.8);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(160, 140, 180);
+    doc.text("TRAKTOR PRO 3 — Assignations MIDI", ML, PH - 4);
+    doc.text(`Page ${pageNum}`, PW - MR, PH - 4, { align: "right" });
 
-    // Badge type
-    const typeLabel = TYPE_LABELS[item.type] || item.type;
-    const badgeW = 12;
-    const badgeX = MARGIN_L + COL_NOM + COL_DESC + 2;
-    doc.setFillColor(typeColor[0], typeColor[1], typeColor[2], 0.12);
-    doc.setFillColor(
-      Math.min(255, typeColor[0] + 160),
-      Math.min(255, typeColor[1] + 140),
-      Math.min(255, typeColor[2] + 200)
-    );
-    doc.roundedRect(badgeX, yPos + 1.5, badgeW, 4.5, 1, 1, "F");
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(6);
-    doc.setTextColor(...typeColor);
-    doc.text(typeLabel, badgeX + badgeW / 2, yPos + 4.5, { align: "center" });
-
-    // Ligne séparatrice légère
-    doc.setDrawColor(230, 220, 240);
-    doc.setLineWidth(0.1);
-    doc.line(MARGIN_L, yPos + ROW_H, MARGIN_L + CONTENT_W, yPos + ROW_H);
+    doc.addPage();
+    pageNum++;
+    doc.setFillColor(250, 247, 242);
+    doc.rect(0, 0, PW, PH, "F");
+    y = ML;
+    drawTableHeader();
   }
 
-  // ── PAGE 1 : Titre et résumé ─────────────────────────────────────────────
-  // Fond crème
+  // ── PAGE DE TITRE ───────────────────────────────────────────────────────────
   doc.setFillColor(250, 247, 242);
-  doc.rect(0, 0, PAGE_W, PAGE_H, "F");
+  doc.rect(0, 0, PW, PH, "F");
 
-  // Bande violette en-tête
+  // Bande violette
   doc.setFillColor(124, 58, 237);
-  doc.rect(0, 0, PAGE_W, 42, "F");
+  doc.rect(0, 0, PW, 28, "F");
+  doc.setFillColor(244, 63, 94);
+  doc.rect(0, 26, PW, 2.5, "F");
 
-  // Titre
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(22);
+  doc.setFontSize(20);
   doc.setTextColor(255, 255, 255);
-  doc.text("TRAKTOR PRO 3", PAGE_W / 2, 18, { align: "center" });
-
-  doc.setFontSize(11);
+  doc.text("TRAKTOR PRO 3", ML, 13);
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
   doc.setTextColor(220, 200, 255);
-  doc.text("Assignations MIDI — Référence complète", PAGE_W / 2, 27, { align: "center" });
+  doc.text("Assignations MIDI — Référence complète", ML, 21);
 
-  doc.setFontSize(8);
+  const now = new Date();
+  doc.setFontSize(7.5);
   doc.setTextColor(200, 180, 255);
-  doc.text("Native Instruments", PAGE_W / 2, 35, { align: "center" });
+  doc.text(`Généré le ${now.toLocaleDateString("fr-FR")} à ${now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`, PW - MR, 21, { align: "right" });
 
-  // Infos du filtre
-  y = 52;
+  // Bloc filtre
+  y = 38;
   doc.setFillColor(237, 233, 254);
-  doc.roundedRect(MARGIN_L, y, CONTENT_W, 22, 3, 3, "F");
+  doc.roundedRect(ML, y, CW * 0.55, 20, 2, 2, "F");
   doc.setDrawColor(196, 181, 253);
   doc.setLineWidth(0.4);
-  doc.roundedRect(MARGIN_L, y, CONTENT_W, 22, 3, 3, "S");
-
+  doc.roundedRect(ML, y, CW * 0.55, 20, 2, 2, "S");
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.setTextColor(109, 40, 217);
-  doc.text("Filtre appliqué", MARGIN_L + 5, y + 8);
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.setTextColor(80, 60, 120);
-  doc.text(`Catégorie : ${filterLabel}`, MARGIN_L + 5, y + 14);
+  doc.text(`Filtre : ${filterLabel}`, ML + 4, y + 8);
   if (searchQuery) {
-    doc.text(`Recherche : "${searchQuery}"`, MARGIN_L + 5, y + 19);
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(7.5);
+    doc.setTextColor(120, 90, 180);
+    doc.text(`Recherche : "${searchQuery}"`, ML + 4, y + 15);
   }
 
   // Compteurs
-  y = 84;
-  const stats = [
-    { label: "Contrôles affichés", value: data.length, color: [124, 58, 237] as [number,number,number] },
-    { label: "Entrée/Sortie", value: data.filter(d => d.type === "Entrée/Sortie").length, color: [109, 40, 217] as [number,number,number] },
-    { label: "Entrée", value: data.filter(d => d.type === "Entrée").length, color: [4, 120, 87] as [number,number,number] },
-    { label: "Sortie", value: data.filter(d => d.type === "Sortie").length, color: [185, 28, 28] as [number,number,number] },
+  const countES  = data.filter(d => d.type === "Entrée/Sortie").length;
+  const countIN  = data.filter(d => d.type === "Entrée").length;
+  const countOUT = data.filter(d => d.type === "Sortie").length;
+  const countNO  = data.filter(d => d.nonOfficiel).length;
+  const statsArr = [
+    { label: "Total",         value: data.length, color: [124, 58, 237] as [number,number,number] },
+    { label: "E/S",           value: countES,     color: [109, 40, 217] as [number,number,number] },
+    { label: "IN",            value: countIN,     color: [4, 120, 87]   as [number,number,number] },
+    { label: "OUT",           value: countOUT,    color: [185, 28, 28]  as [number,number,number] },
+    ...(countNO > 0 ? [{ label: "Non officiel", value: countNO, color: [162, 28, 175] as [number,number,number] }] : []),
   ];
-  const boxW = CONTENT_W / 4 - 2;
-  stats.forEach((s, i) => {
-    const bx = MARGIN_L + i * (boxW + 2.5);
+  const bw = 38;
+  statsArr.forEach((s, i) => {
+    const bx = ML + i * (bw + 3);
+    const by = y + 25;
     doc.setFillColor(255, 255, 255);
-    doc.roundedRect(bx, y, boxW, 18, 2, 2, "F");
-    doc.setDrawColor(s.color[0], s.color[1], s.color[2]);
+    doc.roundedRect(bx, by, bw, 16, 2, 2, "F");
+    doc.setDrawColor(...s.color);
     doc.setLineWidth(0.5);
-    doc.roundedRect(bx, y, boxW, 18, 2, 2, "S");
-
+    doc.roundedRect(bx, by, bw, 16, 2, 2, "S");
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
+    doc.setFontSize(13);
     doc.setTextColor(...s.color);
-    doc.text(String(s.value), bx + boxW / 2, y + 10, { align: "center" });
-
+    doc.text(String(s.value), bx + bw / 2, by + 9, { align: "center" });
     doc.setFont("helvetica", "normal");
     doc.setFontSize(6);
     doc.setTextColor(120, 100, 140);
-    doc.text(s.label, bx + boxW / 2, y + 15, { align: "center" });
+    doc.text(s.label, bx + bw / 2, by + 14, { align: "center" });
   });
 
-  // Légende types
-  y = 112;
+  // Légende
+  y = 90;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8);
+  doc.setFontSize(7.5);
   doc.setTextColor(80, 60, 120);
-  doc.text("Légende des types :", MARGIN_L, y);
-  y += 5;
-
-  const legend = [
-    { label: "E/S — Entrée/Sortie : contrôle bidirectionnel", color: [109, 40, 217] as [number,number,number] },
-    { label: "IN — Entrée seule : reçoit des messages MIDI", color: [4, 120, 87] as [number,number,number] },
-    { label: "OUT — Sortie seule : envoie des messages MIDI", color: [185, 28, 28] as [number,number,number] },
+  doc.text("Légende :", ML, y);
+  const legends = [
+    { code: "E/S",  desc: "Entrée/Sortie — bidirectionnel",     color: [109, 40, 217] as [number,number,number] },
+    { code: "IN",   desc: "Entrée seule — reçoit MIDI",         color: [4, 120, 87]   as [number,number,number] },
+    { code: "OUT",  desc: "Sortie seule — envoie MIDI",         color: [185, 28, 28]  as [number,number,number] },
+    { code: "★",    desc: "Commande virtuelle non officielle",  color: [162, 28, 175] as [number,number,number] },
   ];
-  legend.forEach(l => {
+  let lx = ML + 22;
+  legends.forEach(l => {
     doc.setFillColor(
-      Math.min(255, l.color[0] + 160),
-      Math.min(255, l.color[1] + 140),
-      Math.min(255, l.color[2] + 200)
+      Math.min(255, l.color[0] + 140),
+      Math.min(255, l.color[1] + 130),
+      Math.min(255, l.color[2] + 190)
     );
-    doc.roundedRect(MARGIN_L, y, 8, 4, 1, 1, "F");
+    doc.roundedRect(lx, y - 3.5, 7, 4.5, 1, 1, "F");
     doc.setFont("helvetica", "bold");
     doc.setFontSize(6);
     doc.setTextColor(...l.color);
-    doc.text(l.label.split(" — ")[0], MARGIN_L + 4, y + 2.8, { align: "center" });
-
+    doc.text(l.code, lx + 3.5, y, { align: "center" });
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7);
     doc.setTextColor(80, 70, 90);
-    doc.text(l.label.split(" — ")[1], MARGIN_L + 11, y + 2.8);
-    y += 6;
+    doc.text(l.desc, lx + 9, y);
+    lx += 60;
   });
 
-  // Date de génération
-  y = 140;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(7);
-  doc.setTextColor(160, 140, 180);
-  const now = new Date();
-  doc.text(
-    `Généré le ${now.toLocaleDateString("fr-FR")} à ${now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`,
-    PAGE_W / 2, y, { align: "center" }
-  );
-
-  // ── PAGES DE DONNÉES ─────────────────────────────────────────────────────
+  // ── PAGES DE DONNÉES ────────────────────────────────────────────────────────
   doc.addPage();
+  pageNum++;
   doc.setFillColor(250, 247, 242);
-  doc.rect(0, 0, PAGE_W, PAGE_H, "F");
-  drawPageHeader();
-  drawTableHeader(y);
-  y += HEADER_H;
+  doc.rect(0, 0, PW, PH, "F");
+  y = ML;
+  drawTableHeader();
 
-  // Grouper par catégorie
   const grouped: Record<string, MidiControl[]> = {};
   data.forEach(item => {
     if (!grouped[item.categorie]) grouped[item.categorie] = [];
     grouped[item.categorie].push(item);
   });
 
-  let globalRowIndex = 0;
+  let rowIdx = 0;
 
   Object.entries(grouped).forEach(([cat, items]) => {
-    // Vérifier si on a la place pour l'en-tête de catégorie + au moins 1 ligne
-    if (y + 8 + ROW_H > PAGE_H - 14) {
-      newPage();
-    }
-
-    // En-tête de catégorie
     const catColor = CAT_COLORS_RGB[cat] || [120, 120, 120];
+
+    // En-tête catégorie
+    if (y + 8 + ROW_H > PH - 12) newPage();
     doc.setFillColor(catColor[0], catColor[1], catColor[2]);
-    doc.rect(MARGIN_L, y, CONTENT_W, 7, "F");
+    doc.rect(ML, y, CW, 7, "F");
+    doc.setFillColor(...catColor);
+    doc.rect(ML, y, 2.5, 7, "F");
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    doc.setTextColor(255, 255, 255);
-    doc.text(`${cat}  (${items.length} contrôle${items.length > 1 ? "s" : ""})`, MARGIN_L + 3, y + 5);
-    y += 7;
+    doc.setFontSize(7.5);
+    doc.setTextColor(...catColor);
+    doc.text(`${cat}  (${items.length})`, ML + 5, y + 5);
+    y += 8;
 
     items.forEach(item => {
-      if (y + ROW_H > PAGE_H - 14) {
-        newPage();
+      // Calculer hauteur nécessaire
+      const descLines = doc.splitTextToSize(item.description, C_DESC - 4).length;
+      const usageLines = item.usageTypique ? doc.splitTextToSize(item.usageTypique, C_USAGE - 6).length : 0;
+      const nomLines = doc.splitTextToSize(item.nom, C_NOM - 6).length;
+      const extraNom = item.nonOfficiel ? 1 : 0;
+      const neededH = Math.max(ROW_H, (Math.max(descLines, usageLines, nomLines + extraNom)) * 4 + 4);
+
+      if (y + neededH > PH - 12) newPage();
+
+      // Fond alterné
+      if (rowIdx % 2 === 0) {
+        doc.setFillColor(255, 255, 255);
+      } else {
+        doc.setFillColor(250, 247, 255);
       }
-      drawRow(item, globalRowIndex, y);
-      y += ROW_H;
-      globalRowIndex++;
+      doc.rect(ML, y, CW, neededH, "F");
+
+      // Barre catégorie
+      doc.setFillColor(...catColor);
+      doc.rect(ML, y, 1.5, neededH, "F");
+
+      // Nom
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7);
+      doc.setTextColor(30, 20, 50);
+      const nomArr = doc.splitTextToSize(item.nom, C_NOM - 6);
+      doc.text(nomArr.slice(0, 3), X0 + 3, y + 5);
+
+      // Badge non officiel
+      if (item.nonOfficiel) {
+        const badgeY = y + 5 + Math.min(nomArr.length, 3) * 3.5;
+        doc.setFillColor(253, 244, 255);
+        doc.roundedRect(X0 + 3, badgeY - 2.5, 23, 4, 1, 1, "F");
+        doc.setFontSize(5.5);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(162, 28, 175);
+        doc.text("★ Non officiel", X0 + 4, badgeY + 0.5);
+      }
+
+      // Description
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(6.5);
+      doc.setTextColor(75, 65, 90);
+      const descArr = doc.splitTextToSize(item.description, C_DESC - 4);
+      doc.text(descArr.slice(0, 5), X1 + 2, y + 5);
+
+      // Cas d'usage
+      if (item.usageTypique) {
+        doc.setFillColor(255, 251, 235);
+        doc.roundedRect(X2 + 2, y + 1.5, C_USAGE - 4, neededH - 3, 1.5, 1.5, "F");
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(6.5);
+        doc.setTextColor(180, 83, 9);
+        const usageArr = doc.splitTextToSize(item.usageTypique, C_USAGE - 8);
+        doc.text(usageArr.slice(0, 4), X2 + 4, y + 5);
+      }
+
+      // Badge type
+      const ts = TYPE_COLORS_RGB[item.type] || { bg: [243,244,246], text: [107,114,128] };
+      doc.setFillColor(...ts.bg);
+      doc.roundedRect(X3 + 1, y + 2, C_TYPE - 2, 5.5, 1.5, 1.5, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(6.5);
+      doc.setTextColor(...ts.text);
+      doc.text(TYPE_LABELS[item.type] || item.type, X3 + C_TYPE / 2, y + 6, { align: "center" });
+
+      // Séparateur
+      doc.setDrawColor(230, 225, 240);
+      doc.setLineWidth(0.15);
+      doc.line(ML, y + neededH, ML + CW, y + neededH);
+
+      y += neededH;
+      rowIdx++;
     });
 
-    y += 3; // espace entre catégories
+    y += 3;
   });
 
-  // ── Pied de page sur toutes les pages ────────────────────────────────────
+  // Pied de page toutes les pages
   const totalPages = doc.getNumberOfPages();
   for (let p = 1; p <= totalPages; p++) {
     doc.setPage(p);
     doc.setFillColor(245, 240, 232);
-    doc.rect(0, PAGE_H - 10, PAGE_W, 10, "F");
+    doc.rect(0, PH - 9, PW, 9, "F");
     doc.setFont("helvetica", "normal");
     doc.setFontSize(6.5);
     doc.setTextColor(160, 140, 180);
-    doc.text("TRAKTOR PRO 3 — Assignations MIDI — Native Instruments", MARGIN_L, PAGE_H - 4);
-    doc.text(`${p} / ${totalPages}`, PAGE_W - MARGIN_R, PAGE_H - 4, { align: "right" });
+    doc.text("TRAKTOR PRO 3 — Assignations MIDI — Native Instruments", ML, PH - 3.5);
+    doc.text(`${p} / ${totalPages}`, PW - MR, PH - 3.5, { align: "right" });
   }
 
-  // ── Téléchargement ───────────────────────────────────────────────────────
-  const safeName = filterLabel.replace(/[^a-zA-Z0-9]/g, "_");
+  const safeName = filterLabel.replace(/[^a-zA-Z0-9_\-]/g, "_").substring(0, 40);
   doc.save(`TRAKTOR_PRO3_MIDI_${safeName}.pdf`);
 }

@@ -3,9 +3,15 @@
  * Fond crème chaud #FAF7F2 / #FFFDF9
  * Accents : violet #7C3AED, rose #F43F5E, orange #F97316, vert #10B981, bleu #0EA5E9
  * Typographie : Space Grotesk (titres) + JetBrains Mono (données)
+ *
+ * Fonctionnalités :
+ * - Sous-filtres dynamiques par préfixe (Browser, Deck Common, Mixer, Remix Deck, Track Deck, Commandes Virtuelles)
+ * - Colonne "Cas d'usage typique" visible en mode étendu
+ * - Badge "Non officiel" sur les Commandes Virtuelles
+ * - Export PDF enrichi avec colonne Cas d'usage
  */
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -13,12 +19,57 @@ import {
 } from "recharts";
 import {
   Search, Filter, X, Music2, Zap, ArrowUpDown,
-  LayoutGrid, List, ExternalLink, Activity, ChevronDown, FileDown
+  LayoutGrid, List, ExternalLink, Activity, ChevronDown, FileDown,
+  AlertCircle, Lightbulb
 } from "lucide-react";
 import { exportToPdf } from "@/lib/exportPdf";
-import { MIDI_DATA, CATEGORIES, STATS_BY_CATEGORY, TYPE_COLORS, CAT_COLORS, TOTAL } from "@/lib/midiData";
+import { MIDI_DATA, CATEGORIES, STATS_BY_CATEGORY, CAT_COLORS, TOTAL } from "@/lib/midiData";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310419663031120973/VmM56JPUAEXAm5tmyDWKUu/traktor-hero-33nLS4kk55t8zYwQV5WzgH.webp";
+
+// ─── Sous-groupes par catégorie (détectés automatiquement) ───────────────────
+const SUBGROUP_MAP: Record<string, { label: string; prefix: string | null }[]> = {
+  "Browser": [
+    { label: "Tous", prefix: null },
+    { label: "List (33)", prefix: "List" },
+    { label: "Tree (21)", prefix: "Tree" },
+    { label: "Favorites (2)", prefix: "Favorites" },
+  ],
+  "Commandes Virtuelles": [
+    { label: "Tous", prefix: null },
+    { label: "MIDI Buttons (8)", prefix: "MIDI Button" },
+    { label: "MIDI Knobs (8)", prefix: "MIDI Knob" },
+    { label: "MIDI Faders (8)", prefix: "MIDI Fader" },
+  ],
+  "Deck Common": [
+    { label: "Tous", prefix: null },
+    { label: "Général (30)", prefix: "__none__" },
+    { label: "Loop (7)", prefix: "Loop" },
+    { label: "Timecode (5)", prefix: "Timecode" },
+    { label: "Move (4)", prefix: "Move" },
+    { label: "Freeze Mode (4)", prefix: "Freeze Mode" },
+  ],
+  "Mixer": [
+    { label: "Tous", prefix: null },
+    { label: "Général (19)", prefix: "__none__" },
+    { label: "EQ (8)", prefix: "EQ" },
+    { label: "X-Fader (6)", prefix: "X-Fader" },
+  ],
+  "Remix Deck": [
+    { label: "Tous", prefix: null },
+    { label: "Général (19)", prefix: "__none__" },
+    { label: "Legacy (13)", prefix: "Legacy" },
+    { label: "Direct Mapping (6)", prefix: "Direct Mapping" },
+    { label: "Step Sequencer (5)", prefix: "Step Sequencer" },
+    { label: "Meters (3)", prefix: "Meters" },
+  ],
+  "Track Deck": [
+    { label: "Tous", prefix: null },
+    { label: "Général (19)", prefix: "__none__" },
+    { label: "Grid (12)", prefix: "Grid" },
+    { label: "Cue (8)", prefix: "Cue" },
+  ],
+};
 
 // ─── Couleurs joyeuses par type ───────────────────────────────────────────────
 const TYPE_STYLE: Record<string, { bg: string; text: string; border: string; dot: string }> = {
@@ -33,19 +84,20 @@ const TYPE_LABELS: Record<string, string> = {
 
 // Couleurs vives joyeuses pour les catégories
 const CAT_COLORS_BRIGHT: Record<string, string> = {
-  "AUDIO RECORDER":  "#F43F5E",
-  "Browser":         "#8B5CF6",
-  "Deck Common":     "#0EA5E9",
-  "FX Unit":         "#F59E0B",
-  "Global":          "#EC4899",
-  "Layout":          "#14B8A6",
-  "Loop Recorder":   "#F97316",
-  "Master Clock":    "#10B981",
-  "Mixer":           "#EF4444",
-  "Modifier":        "#6366F1",
-  "Preview Player":  "#06B6D4",
-  "Remix Deck":      "#84CC16",
-  "Track Deck":      "#A855F7",
+  "AUDIO RECORDER":      "#F43F5E",
+  "Browser":             "#8B5CF6",
+  "Commandes Virtuelles":"#D946EF",
+  "Deck Common":         "#0EA5E9",
+  "FX Unit":             "#F59E0B",
+  "Global":              "#EC4899",
+  "Layout":              "#14B8A6",
+  "Loop Recorder":       "#F97316",
+  "Master Clock":        "#10B981",
+  "Mixer":               "#EF4444",
+  "Modifier":            "#6366F1",
+  "Preview Player":      "#06B6D4",
+  "Remix Deck":          "#84CC16",
+  "Track Deck":          "#A855F7",
 };
 
 // ─── Badge Type ───────────────────────────────────────────────────────────────
@@ -56,6 +108,17 @@ function TypeBadge({ type }: { type: string }) {
       style={{ background: s.bg, color: s.text, border: `1.5px solid ${s.border}` }}>
       <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: s.dot }} />
       {TYPE_LABELS[type] || type}
+    </span>
+  );
+}
+
+// ─── Badge Non Officiel ───────────────────────────────────────────────────────
+function NonOfficielBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+      style={{ background: "#FDF4FF", color: "#A21CAF", border: "1.5px solid #E879F9" }}>
+      <AlertCircle size={9} />
+      Non officiel
     </span>
   );
 }
@@ -114,30 +177,55 @@ function StatCard({ label, value, color, icon: Icon, bgColor }: {
 export default function Home() {
   const [search, setSearch] = useState("");
   const [selectedCat, setSelectedCat] = useState<string>("Toutes");
+  const [selectedSubgroup, setSelectedSubgroup] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<string>("Tous");
   const [sortField, setSortField] = useState<"nom" | "categorie" | "type">("categorie");
   const [sortAsc, setSortAsc] = useState(true);
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"explorer" | "stats">("explorer");
+  const [isExporting, setIsExporting] = useState(false);
+
+  // Réinitialiser le sous-groupe quand la catégorie change
+  useEffect(() => {
+    setSelectedSubgroup(null);
+    setExpandedRow(null);
+  }, [selectedCat]);
+
+  const subgroups = selectedCat !== "Toutes" ? (SUBGROUP_MAP[selectedCat] || null) : null;
 
   const filtered = useMemo(() => {
     let data = MIDI_DATA;
     if (selectedCat !== "Toutes") data = data.filter(d => d.categorie === selectedCat);
+
+    // Sous-filtre par préfixe
+    if (selectedSubgroup && selectedCat !== "Toutes") {
+      if (selectedSubgroup === "__none__") {
+        // Contrôles sans préfixe reconnu
+        const knownPrefixes = (SUBGROUP_MAP[selectedCat] || [])
+          .map(s => s.prefix)
+          .filter(p => p && p !== "__none__" && p !== null) as string[];
+        data = data.filter(d => !knownPrefixes.some(p => d.nom.startsWith(p)));
+      } else {
+        data = data.filter(d => d.nom.startsWith(selectedSubgroup));
+      }
+    }
+
     if (selectedType !== "Tous") data = data.filter(d => d.type === selectedType);
     if (search.trim()) {
       const q = search.toLowerCase();
       data = data.filter(d =>
         d.nom.toLowerCase().includes(q) ||
         d.description.toLowerCase().includes(q) ||
-        d.categorie.toLowerCase().includes(q)
+        d.categorie.toLowerCase().includes(q) ||
+        (d.usageTypique && d.usageTypique.toLowerCase().includes(q))
       );
     }
     return [...data].sort((a, b) => {
       const va = a[sortField], vb = b[sortField];
       return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
     });
-  }, [search, selectedCat, selectedType, sortField, sortAsc]);
+  }, [search, selectedCat, selectedSubgroup, selectedType, sortField, sortAsc]);
 
   const pieData = useMemo(() => [
     { name: "Entrée/Sortie", value: MIDI_DATA.filter(d => d.type === "Entrée/Sortie").length },
@@ -159,15 +247,22 @@ export default function Home() {
     else { setSortField(field); setSortAsc(true); }
   };
 
-  const clearFilters = () => { setSearch(""); setSelectedCat("Toutes"); setSelectedType("Tous"); };
-  const hasFilters = search || selectedCat !== "Toutes" || selectedType !== "Tous";
-
-  const [isExporting, setIsExporting] = useState(false);
+  const clearFilters = () => {
+    setSearch(""); setSelectedCat("Toutes"); setSelectedType("Tous"); setSelectedSubgroup(null);
+  };
+  const hasFilters = search || selectedCat !== "Toutes" || selectedType !== "Tous" || selectedSubgroup;
 
   const handleExportPdf = async () => {
     setIsExporting(true);
     try {
-      const filterLabel = selectedCat !== "Toutes" ? selectedCat : selectedType !== "Tous" ? selectedType : "Toutes catégories";
+      let filterLabel = "Toutes catégories";
+      if (selectedCat !== "Toutes") {
+        filterLabel = selectedSubgroup && selectedSubgroup !== "__none__"
+          ? `${selectedCat} › ${selectedSubgroup}`
+          : selectedCat;
+      } else if (selectedType !== "Tous") {
+        filterLabel = selectedType;
+      }
       exportToPdf({
         data: filtered,
         filterLabel,
@@ -230,7 +325,7 @@ export default function Home() {
           {activeTab === "explorer" ? (
             <motion.div key="explorer" initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} className="space-y-5">
 
-              {/* ── FILTRES ─────────────────────────────────────────────────── */}
+              {/* ── FILTRES PRINCIPAUX ────────────────────────────────────── */}
               <div className="joy-card p-4 space-y-3">
                 <div className="flex flex-wrap gap-3 items-center">
                   {/* Recherche */}
@@ -239,7 +334,7 @@ export default function Home() {
                     <input
                       value={search}
                       onChange={e => setSearch(e.target.value)}
-                      placeholder="Rechercher un contrôle ou une description…"
+                      placeholder="Rechercher un contrôle, description ou cas d'usage…"
                       className="w-full border border-gray-200 rounded-xl pl-9 pr-9 py-2.5 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-300 focus:border-violet-400 bg-white transition-all font-mono"
                     />
                     {search && (
@@ -304,6 +399,7 @@ export default function Home() {
                     {isExporting ? "Génération…" : `PDF (${filtered.length})`}
                   </button>
                 </div>
+
                 <div className="flex items-center gap-2 text-xs font-mono text-gray-400">
                   <span className="text-violet-600 font-bold text-sm">{filtered.length}</span>
                   <span>/ {TOTAL} contrôles</span>
@@ -342,22 +438,63 @@ export default function Home() {
                 })}
               </div>
 
+              {/* ── SOUS-FILTRES (apparaissent si la catégorie sélectionnée en a) ── */}
+              <AnimatePresence>
+                {subgroups && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="joy-card p-3 flex flex-wrap gap-2 items-center">
+                      <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider mr-1">
+                        Sous-groupe :
+                      </span>
+                      {subgroups.map(sg => {
+                        const isActive = selectedSubgroup === sg.prefix || (sg.prefix === null && !selectedSubgroup);
+                        const color = CAT_COLORS_BRIGHT[selectedCat] || "#7C3AED";
+                        return (
+                          <button
+                            key={sg.label}
+                            onClick={() => setSelectedSubgroup(sg.prefix)}
+                            className="px-3 py-1 rounded-full text-xs font-semibold transition-all border"
+                            style={isActive ? {
+                              background: color, color: "white", borderColor: color,
+                              boxShadow: `0 2px 6px ${color}40`
+                            } : {
+                              background: `${color}10`, color: color,
+                              borderColor: `${color}35`
+                            }}
+                          >
+                            {sg.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {/* ── VUE TABLEAU ─────────────────────────────────────────────── */}
               {viewMode === "table" && (
                 <div className="joy-card overflow-hidden">
                   {/* En-tête */}
-                  <div className="grid grid-cols-[2fr_3fr_1fr] gap-4 px-5 py-3 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  <div className="grid grid-cols-[2fr_3fr_auto_1fr] gap-4 px-5 py-3 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wider">
                     <button onClick={() => handleSort("nom")} className="flex items-center gap-1.5 hover:text-violet-600 transition-colors text-left">
                       Contrôle <ArrowUpDown size={11} className={sortField === "nom" ? "text-violet-500" : ""} />
                     </button>
                     <span>Description</span>
+                    <span className="flex items-center gap-1 text-amber-500">
+                      <Lightbulb size={11} /> Cas d'usage
+                    </span>
                     <button onClick={() => handleSort("type")} className="flex items-center gap-1.5 hover:text-violet-600 transition-colors">
                       Type <ArrowUpDown size={11} className={sortField === "type" ? "text-violet-500" : ""} />
                     </button>
                   </div>
 
                   {/* Lignes */}
-                  <div className="divide-y divide-gray-50 max-h-[580px] overflow-y-auto">
+                  <div className="divide-y divide-gray-50 max-h-[600px] overflow-y-auto">
                     {filtered.length === 0 ? (
                       <div className="py-16 text-center text-gray-400 text-sm">
                         <Search size={32} className="mx-auto mb-3 opacity-30" />
@@ -372,21 +509,41 @@ export default function Home() {
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           transition={{ delay: Math.min(i * 0.008, 0.25) }}
-                          className={`grid grid-cols-[2fr_3fr_1fr] gap-4 px-5 py-3.5 cursor-pointer transition-colors duration-150 ${
+                          className={`grid grid-cols-[2fr_3fr_auto_1fr] gap-4 px-5 py-3.5 cursor-pointer transition-colors duration-150 ${
                             isExpanded ? "bg-violet-50" : i % 2 === 0 ? "bg-white hover:bg-gray-50" : "bg-[#FDFCFA] hover:bg-gray-50"
                           }`}
                           onClick={() => setExpandedRow(isExpanded ? null : i)}
                         >
+                          {/* Nom + catégorie + badge non officiel */}
                           <div className="flex items-start gap-3 min-w-0">
                             <div className="w-1 min-h-[20px] rounded-full flex-shrink-0 mt-1" style={{ background: catColor }} />
                             <div className="min-w-0">
-                              <p className="text-sm font-semibold text-gray-800 truncate font-mono">{item.nom}</p>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="text-sm font-semibold text-gray-800 font-mono">{item.nom}</p>
+                                {item.nonOfficiel && <NonOfficielBadge />}
+                              </div>
                               <p className="text-[10px] font-semibold mt-0.5 truncate" style={{ color: catColor }}>{item.categorie}</p>
                             </div>
                           </div>
+
+                          {/* Description */}
                           <p className={`text-sm text-gray-500 leading-relaxed ${isExpanded ? "" : "truncate"}`}>
                             {item.description}
                           </p>
+
+                          {/* Cas d'usage */}
+                          <div className="min-w-[120px] max-w-[200px]">
+                            {item.usageTypique ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-mono text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 leading-tight">
+                                <Lightbulb size={9} className="flex-shrink-0 text-amber-500" />
+                                <span className={isExpanded ? "" : "truncate"}>{item.usageTypique}</span>
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-gray-300 font-mono">—</span>
+                            )}
+                          </div>
+
+                          {/* Type + chevron */}
                           <div className="flex items-center justify-between gap-2">
                             <TypeBadge type={item.type} />
                             <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} className="text-gray-300">
@@ -415,10 +572,19 @@ export default function Home() {
                         style={{ borderLeft: `4px solid ${catColor}` }}
                       >
                         <div className="flex items-start justify-between gap-2 mb-2">
-                          <p className="text-sm font-semibold text-gray-800 leading-tight font-mono">{item.nom}</p>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-gray-800 leading-tight font-mono">{item.nom}</p>
+                            {item.nonOfficiel && <div className="mt-1"><NonOfficielBadge /></div>}
+                          </div>
                           <TypeBadge type={item.type} />
                         </div>
-                        <p className="text-xs text-gray-500 leading-relaxed mb-3">{item.description}</p>
+                        <p className="text-xs text-gray-500 leading-relaxed mb-2">{item.description}</p>
+                        {item.usageTypique && (
+                          <div className="flex items-center gap-1 text-[11px] font-mono text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-2">
+                            <Lightbulb size={9} className="flex-shrink-0 text-amber-500" />
+                            {item.usageTypique}
+                          </div>
+                        )}
                         <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full"
                           style={{ background: `${catColor}18`, color: catColor }}>
                           {item.categorie}
@@ -438,7 +604,7 @@ export default function Home() {
                 {/* Barres */}
                 <div className="joy-card p-5">
                   <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-5">Contrôles par catégorie</h3>
-                  <ResponsiveContainer width="100%" height={300}>
+                  <ResponsiveContainer width="100%" height={320}>
                     <BarChart data={barData} layout="vertical" margin={{ left: 0, right: 20 }}>
                       <XAxis type="number" tick={{ fill: "#9CA3AF", fontSize: 10, fontFamily: "JetBrains Mono" }} />
                       <YAxis type="category" dataKey="name" tick={{ fill: "#6B7280", fontSize: 10, fontFamily: "JetBrains Mono" }} width={90} />
@@ -453,7 +619,7 @@ export default function Home() {
                 {/* Camembert */}
                 <div className="joy-card p-5">
                   <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-5">Répartition par type</h3>
-                  <ResponsiveContainer width="100%" height={300}>
+                  <ResponsiveContainer width="100%" height={320}>
                     <PieChart>
                       <Pie data={pieData} cx="50%" cy="50%" innerRadius={70} outerRadius={110}
                         paddingAngle={4} dataKey="value"
@@ -474,6 +640,7 @@ export default function Home() {
               <div className="joy-card overflow-hidden">
                 <div className="px-5 py-4 border-b border-gray-100 bg-gray-50">
                   <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Synthèse croisée — Catégorie × Type</h3>
+                  <p className="text-xs text-gray-400 mt-1 font-mono">Cliquez sur une ligne pour filtrer dans l'explorateur</p>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs font-mono">
@@ -485,12 +652,14 @@ export default function Home() {
                         <th className="text-center px-4 py-3 text-rose-500 font-semibold">OUT</th>
                         <th className="text-center px-4 py-3 text-gray-500 font-semibold">Total</th>
                         <th className="px-5 py-3 text-gray-400 font-semibold">Proportion</th>
+                        <th className="text-center px-3 py-3 text-fuchsia-500 font-semibold">Sous-groupes</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
                       {STATS_BY_CATEGORY.map((s, i) => {
                         const color = CAT_COLORS_BRIGHT[s.categorie] || "#888";
                         const pct = Math.round((s.total / TOTAL) * 100);
+                        const hasSubgroups = !!SUBGROUP_MAP[s.categorie];
                         return (
                           <tr key={s.categorie}
                             className={`${i % 2 === 0 ? "bg-white" : "bg-[#FDFCFA]"} hover:bg-violet-50 transition-colors cursor-pointer`}
@@ -514,6 +683,16 @@ export default function Home() {
                                 <span className="text-gray-400 w-8 text-right">{pct}%</span>
                               </div>
                             </td>
+                            <td className="text-center px-3 py-3">
+                              {hasSubgroups ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                                  style={{ background: `${color}15`, color, border: `1px solid ${color}40` }}>
+                                  {(SUBGROUP_MAP[s.categorie].length - 1)} groupes
+                                </span>
+                              ) : (
+                                <span className="text-gray-300">—</span>
+                              )}
+                            </td>
                           </tr>
                         );
                       })}
@@ -525,7 +704,7 @@ export default function Home() {
                         <td className="text-center px-4 py-3 text-emerald-600 font-bold">{MIDI_DATA.filter(d => d.type === "Entrée").length}</td>
                         <td className="text-center px-4 py-3 text-rose-500 font-bold">{MIDI_DATA.filter(d => d.type === "Sortie").length}</td>
                         <td className="text-center px-4 py-3 text-gray-900 font-bold text-sm">{TOTAL}</td>
-                        <td />
+                        <td /><td />
                       </tr>
                     </tfoot>
                   </table>
@@ -552,7 +731,7 @@ export default function Home() {
           <span>TRAKTOR PRO 3 — {TOTAL} assignations MIDI</span>
           <span className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            Données extraites du manuel officiel
+            Données extraites du manuel officiel · Commandes Virtuelles issues de la base de connaissances
           </span>
         </div>
       </footer>
