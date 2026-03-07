@@ -262,10 +262,35 @@ export default function Home() {
   // Ref pour fermer annotation quand on clique ailleurs
   const annotRef = useRef<HTMLDivElement>(null);
   const [editingAnnotation, setEditingAnnotation] = useState<string | null>(null); // clé "cat||nom"
+  // Ref pour le raccourci Ctrl+K / Cmd+K
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [searchShortcutActive, setSearchShortcutActive] = useState(false);
 
   // Hooks persistance localStorage
   const { toggleFavorite, isFavorite, favoriteCount } = useFavorites();
   const { setAnnotation, getAnnotation, annotationCount } = useAnnotations();
+
+  // Raccourci clavier Ctrl+K / Cmd+K → focus barre de recherche
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        if (activeTab !== "explorer") setActiveTab("explorer");
+        setTimeout(() => {
+          searchInputRef.current?.focus();
+          searchInputRef.current?.select();
+          setSearchShortcutActive(true);
+          setTimeout(() => setSearchShortcutActive(false), 1200);
+        }, activeTab !== "explorer" ? 150 : 0);
+      }
+      if (e.key === "Escape" && document.activeElement === searchInputRef.current) {
+        searchInputRef.current?.blur();
+        setSearch("");
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeTab]);
 
   // Réinitialiser le sous-groupe quand la catégorie change
   useEffect(() => {
@@ -438,13 +463,27 @@ export default function Home() {
                 <div className="flex flex-wrap gap-3 items-center">
                   {/* Recherche */}
                   <div className="relative flex-1 min-w-[220px]">
-                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <Search size={14} className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${searchShortcutActive ? "text-violet-500" : "text-gray-400"}`} />
                     <input
+                      ref={searchInputRef}
                       value={search}
                       onChange={e => setSearch(e.target.value)}
                       placeholder="Rechercher un contrôle, description ou cas d'usage…"
-                      className="w-full border border-gray-200 rounded-xl pl-9 pr-9 py-2.5 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-300 focus:border-violet-400 bg-white transition-all font-mono"
+                      className={`w-full border rounded-xl pl-9 pr-24 py-2.5 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 bg-white transition-all font-mono ${
+                        searchShortcutActive
+                          ? "border-violet-400 ring-2 ring-violet-300 shadow-violet-100 shadow-md"
+                          : "border-gray-200 focus:ring-violet-300 focus:border-violet-400"
+                      }`}
                     />
+                    {/* Badge raccourci clavier */}
+                    {!search && (
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none">
+                        <kbd className="px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-gray-100 text-gray-400 border border-gray-200 leading-none">
+                          {navigator.platform.includes("Mac") ? "⌘" : "Ctrl"}
+                        </kbd>
+                        <kbd className="px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-gray-100 text-gray-400 border border-gray-200 leading-none">K</kbd>
+                      </span>
+                    )}
                     {search && (
                       <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                         <X size={14} />
